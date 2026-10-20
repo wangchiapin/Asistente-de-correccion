@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>作業回饋小幫手</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fffefb;--ink:#2b2b2b;--mute:#8a8780;--line:#dcd8cf;--soft:#efece5}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;font-size:16px;line-height:1.6}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+h1{font-size:20px;font-weight:600;margin:8px 0 2px;letter-spacing:.05em}
+.sub{color:var(--mute);font-size:14px;margin:0 0 16px}
+nav{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:20px}
+nav button{flex:1;background:none;border:none;padding:12px 4px;font:inherit;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+nav button.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:14px}
+.step{font-size:13px;color:var(--mute);letter-spacing:.1em;margin:22px 0 8px}
+label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
+input[type=text],input:not([type]),select,textarea{width:100%;font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:3px;padding:9px 10px}
+textarea{resize:vertical;min-height:90px}
+textarea.tall{min-height:150px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ink)}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+button.main{background:var(--ink);color:#fff;border:1px solid var(--ink);border-radius:3px;padding:11px 18px;font:inherit;cursor:pointer;margin-top:12px}
+button.main:active{opacity:.8}
+button.ghost{background:none;color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:7px 12px;font:inherit;font-size:14px;cursor:pointer;margin-top:8px}
+button.del{background:none;border:none;color:var(--mute);cursor:pointer;font:inherit;font-size:13px;text-decoration:underline;padding:4px}
+.orig{font-size:18px;margin-bottom:6px}
+.n{display:inline-block;width:22px;color:var(--mute);font-size:14px}
+.err{border-top:1px dashed var(--line);margin-top:12px;padding-top:6px}
+.chk{display:flex;align-items:center;gap:8px;color:var(--ink);font-size:14px}
+.chk input{width:auto}
+details{margin-top:10px;font-size:14px;color:var(--mute)}
+details pre{white-space:pre-wrap;background:var(--soft);padding:10px;border-radius:3px;color:var(--ink);font-family:inherit;font-size:13px;max-height:260px;overflow:auto}
+.bar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:15px}
+.bar .name{width:96px;flex:none}
+.bar .track{flex:1;height:8px;background:var(--soft);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%;background:var(--ink)}
+.bar .cnt{width:30px;text-align:right;color:var(--mute);font-size:14px}
+.ex{font-size:14px;color:var(--mute);margin:0 0 8px 106px}
+.ex b{color:var(--ink);font-weight:500}
+.entry{border-top:1px solid var(--line);padding:10px 0;font-size:15px}
+.entry:first-child{border-top:none}
+.meta{color:var(--mute);font-size:13px}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:3px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+.hint{color:var(--mute);font-size:14px}
+.empty{color:var(--mute);text-align:center;padding:28px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>作業回饋小幫手</h1>
+  <p class="sub">貼學生的句子 → 複製指令給任何 AI → 貼回結果 → 中西回饋草稿</p>
+
+  <nav>
+    <button data-tab="fix" class="on">批改</button>
+    <button data-tab="stu">學生紀錄</button>
+    <button data-tab="bak">備份</button>
+  </nav>
+
+  <!-- 批改 -->
+  <section id="tab-fix">
+    <div class="step">① 貼學生的句子</div>
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>學生名字</label>
+          <input id="stuName" list="stuList" placeholder="例如：Carlos" autocomplete="off">
+          <datalist id="stuList"></datalist>
+        </div>
+        <div>
+          <label>本課主題／文法（可不填）</label>
+          <input id="topic" placeholder="例如：了、比較句">
+        </div>
+      </div>
+      <label>學生的句子（一行一句）</label>
+      <textarea id="sentences" class="tall" placeholder="我昨天去了學校。&#10;我喜歡吃很多水果在早上。"></textarea>
+      <button class="main" id="mkPrompt">組好指令並複製</button>
+      <p class="hint" id="recurHint" hidden></p>
+      <p class="hint">複製後貼到：
+        <a href="https://chatgpt.com" target="_blank" rel="noopener">ChatGPT</a>
+        <a href="https://gemini.google.com" target="_blank" rel="noopener">Gemini</a>
+        <a href="https://claude.ai" target="_blank" rel="noopener">Claude</a></p>
+      <details id="pvBox" hidden><summary>看一下複製的指令</summary><pre id="pv"></pre></details>
+    </div>
+
+    <div class="step">② 把 AI 的回答貼回來</div>
+    <div class="card">
+      <textarea id="reply" class="tall" placeholder="貼上 AI 回傳的內容（整段貼上就可以，前後有多餘的文字也沒關係）"></textarea>
+      <button class="main" id="parseBtn">整理成草稿</button>
+    </div>
+
+    <div id="step3" hidden>
+      <div class="step">③ 看一下、改一改</div>
+      <div id="draft"></div>
+      <div class="card">
+        <label>要傳給學生的訊息（可以直接改）</label>
+        <textarea id="msg" class="tall"></textarea>
+        <div class="row">
+          <button class="main" id="copyMsg">複製訊息</button>
+          <button class="ghost" id="recompose" style="margin-top:12px">用上面的內容重新組合</button>
+        </div>
+        <button class="main" id="saveLog" style="background:#fff;color:var(--ink)">存進學生紀錄</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 學生紀錄 -->
+  <section id="tab-stu" hidden>
+    <div class="card">
+      <label>選學生</label>
+      <select id="stuSel"></select>
+    </div>
+    <div id="stuView"></div>
+  </section>
+
+  <!-- 備份 -->
+  <section id="tab-bak" hidden>
+    <div class="card">
+      <p>資料只存在這台裝置的這個瀏覽器裡。換電腦、清除瀏覽資料之前，請先匯出備份。</p>
+      <button class="main" id="exp">匯出備份檔</button>
+      <label style="margin-top:18px">匯入備份檔（會跟現有資料合併）</label>
+      <input type="file" id="imp" accept="application/json">
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const LS = 'feedback_helper_v1';
+const TYPES = ['了／過／著','量詞','語序','把字句','比較句','介詞','連詞','助詞','否定（不／沒）','用詞選擇','詞性','錯別字／聲調','時間地點位置','其他'];
+let db = {students:{}};
+try { const s = localStorage.getItem(LS); if (s) db = JSON.parse(s); } catch(e){}
+if (!db.students) db.students = {};
+let draft = null;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function save(){ try { localStorage.setItem(LS, JSON.stringify(db)); } catch(e){ toast('儲存失敗，請先匯出備份'); } }
+function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),1800); }
+function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+async function copy(text){
+  try { await navigator.clipboard.writeText(text); }
+  catch(e){ const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  toast('已複製');
+}
+
+/* 分頁 */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  ['fix','stu','bak'].forEach(k=>$('#tab-'+k).hidden = k!==b.dataset.tab);
+  if (b.dataset.tab==='stu') renderStudents();
+});
+
+/* 統計 */
+function statsFor(name){
+  const st = db.students[name]; const map = {};
+  if (!st) return map;
+  st.entries.forEach(en=>en.items.forEach(it=>{
+    if (it.is_correct) return;
+    it.errors.forEach(e=>{
+      const t = e.type || '其他';
+      (map[t] = map[t] || {count:0, examples:[]}).count++;
+      if (e.wrong || e.right) map[t].examples.push({wrong:e.wrong, right:e.right});
+    });
+  }));
+  return map;
+}
+function topTypes(name, minCount){
+  const m = statsFor(name);
+  return Object.entries(m).filter(([,v])=>v.count>=minCount).sort((a,b)=>b[1].count-a[1].count);
+}
+function refreshList(){
+  $('#stuList').innerHTML = Object.keys(db.students).map(n=>`<option value="${esc(n)}">`).join('');
+}
+
+/* ① 組指令 */
+function buildPrompt(name, topic, sentences){
+  const recur = topTypes(name, 2).slice(0,3).map(([t,v])=>`${t}（${v.count} 次）`);
+  const lines = [];
+  lines.push('你是幫台灣華語老師批改作業的助手。學生是說西班牙語的華語學習者，請幫我批改下面這些學生寫的中文句子。');
+  lines.push('');
+  if (name) lines.push('學生：'+name);
+  if (topic) lines.push('本課主題／文法：'+topic);
+  if (recur.length) lines.push('這位學生過去常犯的錯：'+recur.join('、')+'（遇到相關錯誤時請特別留意）');
+  lines.push('');
+  lines.push('規則：');
+  lines.push('1. 以台灣常用的說法來判斷對錯；你寫的中文說明用繁體字。');
+  lines.push('2. 【最重要】最小修改原則：只改「明確的錯誤」（文法、用詞搭配、錯字、語序）。學生的句子只要意思清楚、文法沒有錯，就算正確（is_correct 填 true）。不要為了更自然、更口語、更好聽而改。');
+  lines.push('3. 不要改標點符號；不要把簡體轉成繁體（或繁體轉簡體），保留學生原本的字形；不要換掉學生選的詞；不要改變或補充學生想表達的意思。corrected 只能在有錯的地方動手，其他字原封不動。');
+  lines.push('4. 沒把握是不是錯，就不要改。把你的想法寫在該句的 optional_zh（一句中文，給老師參考，不會傳給學生）；沒有就留空字串。');
+  lines.push('5. 每個錯誤要寫：wrong（原句中錯的那幾個字）、right（改成什麼）、explanation_es（用簡單的西班牙語說明為什麼，1–2 句，可附一個很短的例句）、explanation_zh（給老師看的一句中文說明）。用台灣常用的說法，少用文法術語。');
+  lines.push('6. type 請從這個清單挑一個：'+TYPES.join('、'));
+  lines.push('7. message_es 寫一句簡短的西班牙語鼓勵，message_zh 是它的中文。');
+  lines.push('8. 請把結果放在一個 json 程式碼區塊裡，只回傳這個區塊，不要加其他文字。所有引號都用半形 "，如果句子裡有引號，請改用「」。格式如下：');
+  lines.push('{"items":[{"original":"學生原句","corrected":"修正後的句子","is_correct":false,"optional_zh":"","errors":[{"type":"了／過／著","wrong":"錯的部分","right":"正確寫法","explanation_es":"…","explanation_zh":"…"}]}],"message_es":"…","message_zh":"…"}');
+  lines.push('');
+  lines.push('學生的句子：');
+  sentences.forEach((s,i)=>lines.push((i+1)+'. '+s));
+  return lines.join('\n');
+}
+$('#mkPrompt').onclick = ()=>{
+  const sentences = $('#sentences').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if (!sentences.length) return toast('請先貼句子');
+  const name = $('#stuName').value.trim();
+  const p = buildPrompt(name, $('#topic').value.trim(), sentences);
+  $('#pv').textContent = p; $('#pvBox').hidden = false;
+  copy(p);
+  const rc = name ? topTypes(name,2).slice(0,3).map(([t,v])=>t+'×'+v) : [];
+  const h = $('#recurHint');
+  if (rc.length){ h.hidden=false; h.textContent='提醒：'+name+' 常犯的錯是 '+rc.join('、')+'，已經一起寫進指令。'; } else h.hidden = true;
+};
+
+/* ② 解析 */
+/* 容錯解析：彎引號、全形冒號逗號、句子裡夾著引號、字串裡直接換行 */
+function lenientJSON(src){
+  const Q = '"“”„‟＂';
+  let out = '', inStr = false;
+  for (let i=0; i<src.length; i++){
+    const c = src[i];
+    if (!inStr){
+      if (Q.includes(c)){ inStr = true; out += '"'; }
+      else if (c==='：') out += ':';
+      else if (c==='，') out += ',';
+      else out += c;
+      continue;
+    }
+    if (c==='\\'){ out += c + (src[i+1]||''); i++; continue; }
+    if (c==='\n'){ out += '\\n'; continue; }
+    if (c==='\r' || c==='\t'){ out += ' '; continue; }
+    if (Q.includes(c)){
+      let j = i+1; while (j<src.length && /\s/.test(src[j])) j++;
+      const n = src[j];
+      let closing = j>=src.length || n==='}' || n===']' || n===':' || n==='：';
+      if (!closing && (n===',' || n==='，')){
+        let k = j+1; while (k<src.length && /\s/.test(src[k])) k++;
+        closing = k<src.length && (Q.includes(src[k]) || src[k]==='{' || src[k]==='[');
+      }
+      if (closing){ inStr = false; out += '"'; } else out += '\\"';
+      continue;
+    }
+    out += c;
+  }
+  return JSON.parse(out);
+}
+function parseReply(txt){
+  txt = txt.replace(/```json|```/gi,'');
+  const a = txt.indexOf('{'), b = txt.lastIndexOf('}');
+  if (a<0 || b<=a) throw new Error('找不到內容');
+  const body = txt.slice(a,b+1);
+  let o;
+  try { o = JSON.parse(body); } catch(_) { o = lenientJSON(body); }
+  if (!Array.isArray(o.items)) throw new Error('格式不對');
+  return {
+    message_es: o.message_es || '', message_zh: o.message_zh || '',
+    items: o.items.map(it=>({
+      original: it.original || '', corrected: it.corrected || it.original || '',
+      optional: it.optional_zh || it.note_zh || '',
+      is_correct: !!it.is_correct,
+      errors: (Array.isArray(it.errors)?it.errors:[]).map(e=>({
+        type: e.type || '其他', wrong: e.wrong || '', right: e.right || '',
+        es: e.explanation_es || e.es || '', zh: e.explanation_zh || e.zh || ''
+      }))
+    }))
+  };
+}
+$('#parseBtn').onclick = ()=>{
+  const t = $('#reply').value.trim();
+  if (!t) return toast('請先貼 AI 的回答');
+  try { draft = parseReply(t); }
+  catch(e){ return toast('看不懂這段內容（'+e.message.slice(0,40)+'）'); }
+  renderDraft();
+  $('#msg').value = compose();
+  $('#step3').scrollIntoView({behavior:'smooth'});
+};
+
+/* ③ 草稿 */
+function errHtml(e,j){
+  const opts = TYPES.concat(TYPES.includes(e.type)?[]:[e.type]).map(t=>`<option ${t===e.type?'selected':''}>${esc(t)}</option>`).join('');
+  return `<div class="err" data-j="${j}">
+    <div class="row"><div><label>錯誤類型</label><select data-f="type">${opts}</select></div><div></div></div>
+    <div class="row"><div><label>錯的部分</label><input data-f="wrong" value="${esc(e.wrong)}"></div>
+    <div><label>正確寫法</label><input data-f="right" value="${esc(e.right)}"></div></div>
+    <label>西語說明</label><textarea data-f="es" style="min-height:64px">${esc(e.es)}</textarea>
+    <label>中文說明</label><textarea data-f="zh" style="min-height:48px">${esc(e.zh)}</textarea>
+    <button class="del" data-act="delerr">不採用這個修改（還原成學生原本的寫法）</button></div>`;
+}
+function renderDraft(){
+  $('#step3').hidden = !draft;
+  if (!draft) return;
+  $('#draft').innerHTML = draft.items.map((it,i)=>`<div class="card" data-i="${i}">
+    <div class="orig"><span class="n">${i+1}</span>${esc(it.original)}</div>
+    ${it.optional ? `<p class="hint">老師參考（不會傳給學生）：${esc(it.optional)}</p>` : ''}
+    <label class="chk"><input type="checkbox" data-f="is_correct" ${it.is_correct?'checked':''}> 這句本來就正確</label>
+    ${it.is_correct ? '' : `<label>修正後</label><input data-f="corrected" value="${esc(it.corrected)}">
+      ${it.errors.map((e,j)=>errHtml(e,j)).join('')}
+      <button class="ghost" data-act="adderr">＋ 新增一個錯誤</button>`}
+  </div>`).join('');
+}
+$('#draft').addEventListener('input', ev=>{
+  const f = ev.target.dataset.f; if (!f || f==='is_correct') return;
+  const card = ev.target.closest('[data-i]'); const it = draft.items[+card.dataset.i];
+  const er = ev.target.closest('.err');
+  if (er) it.errors[+er.dataset.j][f] = ev.target.value; else it[f] = ev.target.value;
+});
+$('#draft').addEventListener('change', ev=>{
+  if (ev.target.dataset.f==='is_correct'){
+    draft.items[+ev.target.closest('[data-i]').dataset.i].is_correct = ev.target.checked; renderDraft();
+  }
+});
+$('#draft').addEventListener('click', ev=>{
+  const act = ev.target.dataset.act; if (!act) return;
+  const it = draft.items[+ev.target.closest('[data-i]').dataset.i];
+  if (act==='adderr') it.errors.push({type:'其他',wrong:'',right:'',es:'',zh:''});
+  if (act==='delerr'){
+    const j = +ev.target.closest('.err').dataset.j; const e = it.errors[j];
+    if (e && e.wrong && e.right && it.corrected.includes(e.right)) it.corrected = it.corrected.replace(e.right, e.wrong);
+    it.errors.splice(j,1);
+    toast('已還原；要更新下方訊息，請按「重新組合」');
+  }
+  renderDraft();
+});
+function compose(){
+  const out = draft.items.map((it,i)=>{
+    let s = (i+1)+'. '+it.original;
+    if (it.is_correct || (!it.errors.length && it.corrected===it.original)) return s+'\n✅ ¡Perfecto! 完全正確';
+    s += '\n✅ '+it.corrected;
+    it.errors.forEach(e=>{ if (e.es) s += '\n• '+e.es; if (e.zh) s += '\n  '+e.zh; });
+    return s;
+  });
+  const tail = [draft.message_es, draft.message_zh].filter(Boolean).join('\n');
+  return out.join('\n\n') + (tail ? '\n\n'+tail : '');
+}
+$('#recompose').onclick = ()=>{ $('#msg').value = compose(); toast('已重新組合'); };
+$('#copyMsg').onclick = ()=>copy($('#msg').value);
+$('#saveLog').onclick = ()=>{
+  const name = $('#stuName').value.trim();
+  if (!name) { toast('請先在①填學生名字'); $('#stuName').scrollIntoView({behavior:'smooth'}); return; }
+  const st = db.students[name] = db.students[name] || {entries:[]};
+  st.entries.push({id:Date.now(), date:today(), topic:$('#topic').value.trim(), items:JSON.parse(JSON.stringify(draft.items))});
+  save(); refreshList(); toast('已存進 '+name+' 的紀錄');
+};
+
+/* 學生紀錄 */
+function renderStudents(){
+  const names = Object.keys(db.students).sort();
+  const sel = $('#stuSel'); const cur = sel.value;
+  sel.innerHTML = names.map(n=>`<option ${n===cur?'selected':''}>${esc(n)}</option>`).join('');
+  if (!names.length){ $('#stuView').innerHTML = '<div class="empty">還沒有紀錄。批改完按「存進學生紀錄」就會出現在這裡。</div>'; return; }
+  showStudent(sel.value || names[0]);
+}
+$('#stuSel').onchange = ()=>showStudent($('#stuSel').value);
+function showStudent(name){
+  const st = db.students[name]; if (!st) return;
+  const top = topTypes(name,1).sort((a,b)=>b[1].count-a[1].count);
+  const max = top.length ? top[0][1].count : 1;
+  const bars = top.length ? top.map(([t,v])=>{
+    const ex = v.examples.slice(-2).reverse().map(x=>`<b>${esc(x.wrong)}</b> → ${esc(x.right)}`).join('　／　');
+    return `<div class="bar"><span class="name">${esc(t)}</span><span class="track"><span class="fill" style="width:${v.count/max*100}%;display:block"></span></span><span class="cnt">${v.count}</span></div>${ex?`<p class="ex">${ex}</p>`:''}`;
+  }).join('') : '<p class="hint">目前沒有錯誤紀錄。</p>';
+  const entries = st.entries.slice().reverse().map(en=>{
+    const body = en.items.map(it=>it.is_correct ? `${esc(it.original)} ✅` : `${esc(it.original)} → <b>${esc(it.corrected)}</b>`).join('<br>');
+    return `<div class="entry"><div class="meta">${esc(en.date)}${en.topic?'　'+esc(en.topic):''}　<button class="del" data-del="${en.id}">刪除</button></div>${body}</div>`;
+  }).join('');
+  $('#stuView').innerHTML = `
+    <div class="card"><label style="margin-top:0">常犯的錯誤</label>${bars}
+      ${top.length?`<button class="main" id="revBtn">做複習題的指令</button>`:''}</div>
+    <div class="card"><label style="margin-top:0">每次批改（${st.entries.length} 次）</label>${entries||'<p class="hint">沒有紀錄</p>'}
+      <button class="del" id="delStu" style="margin-top:10px">刪除這位學生的全部紀錄</button></div>`;
+  const rb = $('#revBtn');
+  if (rb) rb.onclick = ()=>{
+    const lines = ['請幫我的學生 '+name+' 出複習題。他是說西班牙語的華語學習者，請用台灣常用說法與繁體字。',
+      '', '他最近常犯的錯誤：'];
+    top.slice(0,4).forEach(([t,v])=>{
+      lines.push('・'+t+'（'+v.count+' 次）'+(v.examples.length?'，例如：'+v.examples.slice(-2).map(x=>x.wrong+' → '+x.right).join('；'):''));
+    });
+    lines.push('', '請針對每一種錯誤出 3 題（填空或選擇），題目難度跟這些例句差不多；題目用中文，說明用簡單的西班牙語；最後附上答案。');
+    copy(lines.join('\n'));
+  };
+  $('#delStu').onclick = ()=>{ if (confirm('確定刪除 '+name+' 的全部紀錄？')){ delete db.students[name]; save(); refreshList(); renderStudents(); } };
+  $('#stuView').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    if (!confirm('刪除這次批改紀錄？')) return;
+    st.entries = st.entries.filter(e=>String(e.id)!==b.dataset.del); save(); showStudent(name);
+  });
+}
+
+/* 備份 */
+$('#exp').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(db,null,1)],{type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'feedback-helper-backup-'+today()+'.json'; a.click(); URL.revokeObjectURL(a.href);
+};
+$('#imp').onchange = ev=>{
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try {
+      const o = JSON.parse(r.result); if (!o.students) throw 0;
+      Object.entries(o.students).forEach(([n,s])=>{
+        const mine = db.students[n] = db.students[n] || {entries:[]};
+        const ids = new Set(mine.entries.map(e=>e.id));
+        (s.entries||[]).forEach(e=>{ if (!ids.has(e.id)) mine.entries.push(e); });
+        mine.entries.sort((a,b)=>a.id-b.id);
+      });
+      save(); refreshList(); toast('匯入完成');
+    } catch(e){ toast('這個檔案不是備份檔'); }
+    ev.target.value = '';
+  };
+  r.readAsText(f);
+};
+
+refreshList();
+</script>
+</body>
+</html>
